@@ -1,0 +1,34 @@
+{
+  "walls": [
+    {"id": "W1",  "start": [0, 0],    "end": [10, 0],   "thickness": 0.3, "type": "outer"},
+    {"id": "W2",  "start": [10, 0],   "end": [10, 8],   "thickness": 0.3, "type": "outer"},
+    {"id": "W3",  "start": [10, 8],   "end": [0, 8],    "thickness": 0.3, "type": "outer"},
+    {"id": "W4",  "start": [0, 8],    "end": [0, 0],    "thickness": 0.3, "type": "outer"},
+    {"id": "W5",  "start": [5, 0],    "end": [5, 8],    "thickness": 0.2, "type": "inner"},
+    {"id": "W6",  "start": [0, 4],    "end": [5, 4],    "thickness": 0.15,"type": "inner"},
+    {"id": "W7",  "start": [5, 5],    "end": [10, 5],   "thickness": 0.15,"type": "inner"}
+  ],
+  "rooms": [
+    {"id": "R1", "name": "Living Room",  "corners": [[0,0],[5,0],[5,4],[0,4]]},
+    {"id": "R2", "name": "Bedroom 1",   "corners": [[0,4],[5,4],[5,8],[0,8]]},
+    {"id": "R3", "name": "Kitchen",     "corners": [[5,0],[10,0],[10,5],[5,5]]},
+    {"id": "R4", "name": "Bedroom 2",   "corners": [[5,5],[10,5],[10,8],[5,8]]}
+  ],
+  "openings": [
+    {"id": "D1", "wall_id": "W1", "type": "door",   "position": 2.5, "width": 1.0},
+    {"id": "D2", "wall_id": "W5", "type": "door",   "position": 2.0, "width": 0.9},
+    {"id": "D3", "wall_id": "W5", "type": "door",   "position": 6.5, "width": 0.9},
+    {"id": "W8", "wall_id": "W2", "type": "window", "position": 2.5, "width": 1.5},
+    {"id": "W9", "wall_id": "W3", "type": "window", "position": 2.5, "width": 1.5},
+    {"id": "W10","wall_id": "W4", "type": "window", "position": 2.0, "width": 1.2}
+  ],
+  "materials_db": {
+    "Reinforced Concrete": {"strength": 9, "durability": 9, "cost": 8},
+    "AAC Blocks":          {"strength": 5, "durability": 7, "cost": 3},
+    "Fly Ash Bricks":      {"strength": 6, "durability": 7, "cost": 4},
+    "Red Clay Bricks":     {"strength": 6, "durability": 6, "cost": 5},
+    "Hollow Concrete Blocks": {"strength": 5, "durability": 6, "cost": 3},
+    "Steel Frame":         {"strength": 10, "durability": 9, "cost": 10},
+    "Prestressed Concrete":{"strength": 10, "durability": 10,"cost": 9}
+  }
+}

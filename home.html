@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2D to 3D Floor Plan Converter</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:'Segoe UI',Arial,sans-serif; min-height:100vh; color:white;
+  background:linear-gradient(135deg,#0f0c29,#302b63,#1a0533,#0d1b4b,#24243e);
+  background-size:400% 400%; animation:bgMove 12s ease infinite;
+  display:flex; flex-direction:column; align-items:center; padding:30px 20px;
+}
+@keyframes bgMove { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+
+.badge { background:linear-gradient(90deg,#43e97b,#38f9d7); color:#111; font-size:0.75em; font-weight:bold; padding:5px 18px; border-radius:20px; margin-bottom:22px; margin-top:20px; }
+h1 { font-size:2.4em; text-align:center; line-height:1.2; margin-bottom:12px; background:linear-gradient(90deg,#f093fb,#f5576c,#fda085); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.sub { color:#999; font-size:0.9em; text-align:center; max-width:460px; margin-bottom:30px; line-height:1.7; }
+
+.card { background:rgba(255,255,255,0.06); border:1px solid rgba(253,160,133,0.3); border-radius:24px; padding:30px; width:100%; max-width:500px; backdrop-filter:blur(14px); box-shadow:0 20px 60px rgba(240,147,251,0.08); margin-bottom:30px; }
+
+/* upload */
+.upload-zone { border:2px dashed rgba(253,160,133,0.45); border-radius:16px; padding:30px 20px; text-align:center; margin-bottom:14px; transition:all 0.25s; }
+.upload-zone.drag { border-color:#fda085; background:rgba(253,160,133,0.07); }
+.upload-zone .icon { font-size:2.5em; display:block; margin-bottom:8px; }
+.upload-zone .mt  { color:#fda085; font-weight:bold; font-size:0.95em; }
+.upload-zone .st  { color:#666; font-size:0.76em; margin-top:4px; }
+.fname { color:#43e97b; font-size:0.82em; margin-top:6px; font-weight:bold; display:none; }
+#file-input { display:none; }
+#preview { width:100%; border-radius:10px; margin-bottom:14px; display:none; max-height:200px; object-fit:cover; border:1px solid rgba(255,255,255,0.1); }
+
+/* buttons */
+.btn { width:100%; padding:14px; border:none; border-radius:50px; font-size:0.95em; font-weight:bold; cursor:pointer; transition:transform 0.2s,opacity 0.2s; }
+.btn:hover:not(:disabled) { transform:scale(1.03); }
+.btn:disabled { opacity:0.4; cursor:not-allowed; }
+.btn-orange { background:linear-gradient(90deg,#fda085,#f5576c); color:white; box-shadow:0 6px 24px rgba(245,87,108,0.4); }
+.btn-purple { background:linear-gradient(90deg,#a18cd1,#fbc2eb); color:white; box-shadow:0 6px 24px rgba(161,140,209,0.35); display:none; margin-top:10px; }
+
+/* spinner */
+.spinner { display:none; text-align:center; padding:16px 0; color:#f093fb; font-size:0.85em; }
+.ring { width:32px; height:32px; margin:0 auto 8px; border:3px solid rgba(240,147,251,0.2); border-top-color:#f093fb; border-radius:50%; animation:spin 0.75s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* error */
+.err { display:none; color:#f5576c; font-size:0.82em; margin-top:10px; padding:10px 14px; background:rgba(245,87,108,0.1); border-radius:10px; }
+
+/* stats */
+.section { display:none; margin-top:18px; }
+.sec-title { font-size:0.88em; font-weight:bold; margin-bottom:12px; text-align:center; background:linear-gradient(90deg,#4facfe,#00f2fe); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.row { display:flex; justify-content:space-between; font-size:0.8em; margin-bottom:6px; }
+.row span:first-child { color:#aaa; }
+.row span:last-child  { color:#43e97b; font-weight:bold; }
+.divider { border:none; border-top:1px solid rgba(255,255,255,0.08); margin:10px 0; }
+.warn-box { font-size:0.74em; color:#fda085; margin-top:8px; line-height:1.6; }
+
+/* room count */
+.room-big-box { background:linear-gradient(135deg,rgba(240,147,251,0.1),rgba(245,87,108,0.1)); border:1px solid rgba(240,147,251,0.25); border-radius:14px; padding:16px; text-align:center; margin-bottom:12px; }
+.room-big { font-size:3.5em; font-weight:bold; background:linear-gradient(90deg,#f093fb,#f5576c); -webkit-background-clip:text; -webkit-text-fill-color:transparent; line-height:1; }
+.room-big-label { font-size:0.78em; color:#aaa; margin-top:4px; }
+.room-cards { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:10px; }
+.rcard { background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:8px 12px; text-align:center; min-width:75px; }
+.rcard-num  { font-size:1.6em; font-weight:bold; }
+.rcard-name { font-size:0.68em; color:#fbc2eb; margin-top:2px; }
+.rcard-area { font-size:0.65em; color:#43e97b; }
+
+/* material */
+.mat-el { margin-bottom:14px; }
+.mat-el-name { font-size:0.75em; font-weight:bold; color:#f093fb; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.07); }
+.mat-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:9px; padding:9px 11px; margin-bottom:5px; display:flex; align-items:center; gap:9px; }
+.mat-rank { width:20px; height:20px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:0.7em; font-weight:bold; }
+.r1{background:linear-gradient(135deg,#FFD700,#FFA500);color:#111}
+.r2{background:linear-gradient(135deg,#C0C0C0,#888);color:#111}
+.r3{background:linear-gradient(135deg,#CD7F32,#8B4513);color:white}
+.mat-info { flex:1; }
+.mat-name { font-size:0.8em; font-weight:bold; color:white; }
+.mat-bar  { height:3px; border-radius:2px; margin:3px 0; background:rgba(255,255,255,0.08); }
+.mat-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,#43e97b,#38f9d7); }
+.mat-meta { display:flex; gap:8px; font-size:0.68em; color:#777; flex-wrap:wrap; }
+.mat-cost { font-size:0.68em; color:#fda085; margin-top:2px; }
+.mat-reason { font-size:0.68em; color:#999; margin-top:2px; line-height:1.4; }
+.mat-formula { font-size:0.62em; color:#444; margin-top:1px; font-family:monospace; }
+.mat-explain { background:rgba(79,172,254,0.07); border:1px solid rgba(79,172,254,0.15); border-radius:7px; padding:8px 10px; margin-top:6px; font-size:0.72em; color:#aaa; line-height:1.5; }
+.formula-note { font-size:0.65em; color:#444; text-align:center; margin-top:10px; padding:6px; background:rgba(0,0,0,0.2); border-radius:7px; font-family:monospace; }
+
+/* cost */
+.cost-total-box { background:linear-gradient(135deg,rgba(67,233,123,0.1),rgba(56,249,215,0.1)); border:1px solid rgba(67,233,123,0.25); border-radius:14px; padding:18px; text-align:center; margin-bottom:14px; }
+.cost-big { font-size:2.2em; font-weight:bold; background:linear-gradient(90deg,#43e97b,#38f9d7); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.cost-sub { font-size:0.76em; color:#aaa; margin-top:3px; }
+.cost-meta { display:flex; gap:8px; justify-content:center; margin-top:10px; flex-wrap:wrap; }
+.cost-meta-item { background:rgba(255,255,255,0.05); border-radius:9px; padding:7px 12px; font-size:0.74em; text-align:center; }
+.cost-meta-item b { display:block; font-size:1.15em; color:#43e97b; }
+.cost-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:0.76em; }
+.cost-row span:first-child { color:#aaa; }
+.cost-row span:last-child  { color:white; font-weight:bold; }
+.cost-bar { height:3px; flex:1; margin:0 8px; background:rgba(255,255,255,0.07); border-radius:2px; }
+.cost-bar-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,#f093fb,#f5576c); }
+.cost-sub-row { border-top:1px solid rgba(255,255,255,0.12) !important; margin-top:4px; }
+.cost-sub-row span { color:#fda085 !important; }
+.cost-total-row span { color:#43e97b !important; font-size:1.05em !important; }
+
+/* quantity */
+.qty-table { width:100%; border-collapse:collapse; font-size:0.76em; margin-top:8px; }
+.qty-table th { text-align:left; padding:7px 8px; color:#666; font-weight:normal; border-bottom:1px solid rgba(255,255,255,0.07); }
+.qty-table td { padding:7px 8px; border-bottom:1px solid rgba(255,255,255,0.04); color:#bbb; vertical-align:top; }
+.qty-table tr:hover td { background:rgba(255,255,255,0.02); }
+.qty-num  { color:#43e97b !important; font-weight:bold; white-space:nowrap; }
+.qty-unit { color:#4facfe !important; }
+.qty-note { color:#444 !important; font-size:0.9em; line-height:1.4; }
+
+footer { color:#2a2a4a; font-size:0.74em; margin-bottom:20px; }
+</style>
+</head>
+<body>
+
+<span class="badge">AI-Powered</span>
+<h1>2D Floor Plan to 3D Model</h1>
+<p class="sub">Upload any floor plan image — detect walls, rooms, doors &amp; windows, get material recommendations, cost &amp; quantity estimates.</p>
+
+<div class="card">
+
+  <!-- UPLOAD -->
+  <div class="upload-zone" id="drop-zone">
+    <span class="icon">&#128444;&#65039;</span>
+    <div class="mt">Click here to choose a floor plan image</div>
+    <div class="st">or drag &amp; drop &nbsp;|&nbsp; PNG, JPG supported</div>
+    <div class="fname" id="fname"></div>
+  </div>
+  <input type="file" id="file-input" accept=".png,.jpg,.jpeg">
+
+  <img id="preview" alt="preview">
+
+  <button class="btn btn-orange" id="btn-convert" disabled onclick="convert()">Convert to 3D</button>
+  <button class="btn btn-purple" id="btn-view" onclick="openViewer()">View 3D Model</button>
+
+  <div class="spinner" id="spinner"><div class="ring"></div>Analyzing floor plan...</div>
+  <div class="err" id="err"></div>
+
+  <!-- DETECTION STATS -->
+  <div class="section" id="sec-stats">
+    <div class="sec-title">Detection Results</div>
+    <div class="row"><span>Total Walls</span>   <span id="s-walls">-</span></div>
+    <div class="row"><span>Load-Bearing</span>  <span id="s-lb">-</span></div>
+    <div class="row"><span>Partition</span>     <span id="s-pt">-</span></div>
+    <div class="row"><span>Total Rooms</span>   <span id="s-rooms">-</span></div>
+    <div class="row"><span>Doors</span>         <span id="s-doors">-</span></div>
+    <div class="row"><span>Windows</span>       <span id="s-windows">-</span></div>
+    <div class="row"><span>Floor Area</span>    <span id="s-area">-</span></div>
+    <div class="row"><span>Building Size</span> <span id="s-size">-</span></div>
+    <hr class="divider">
+    <div id="s-rooms-detail"></div>
+    <div class="warn-box" id="s-warn"></div>
+  </div>
+
+  <!-- ROOM COUNT -->
+  <div class="section" id="sec-rooms">
+    <div class="room-big-box">
+      <div class="room-big" id="rc-num">0</div>
+      <div class="room-big-label">Rooms Detected</div>
+    </div>
+    <div class="room-cards" id="rc-cards"></div>
+  </div>
+
+  <!-- MATERIAL ANALYSIS -->
+  <div class="section" id="sec-mat">
+    <div class="sec-title">Material Analysis &amp; Cost-Strength Tradeoff</div>
+    <div id="mat-content"></div>
+  </div>
+
+  <!-- COST ESTIMATION -->
+  <div class="section" id="sec-cost">
+    <div class="sec-title">Construction Cost Estimation</div>
+    <div class="cost-total-box">
+      <div class="cost-big" id="ce-total">--</div>
+      <div class="cost-sub">Estimated Total Construction Cost</div>
+      <div class="cost-meta">
+        <div class="cost-meta-item"><b id="ce-lakhs">--</b>Lakhs INR</div>
+        <div class="cost-meta-item"><b id="ce-sqft">--</b>Cost/sq.ft</div>
+        <div class="cost-meta-item"><b id="ce-m2">--</b>Cost/m2</div>
+        <div class="cost-meta-item"><b id="ce-area">--</b>Area</div>
+      </div>
+    </div>
+    <div id="ce-rows"></div>
+  </div>
+
+  <!-- MATERIAL QUANTITIES -->
+  <div class="section" id="sec-qty">
+    <div class="sec-title">Material Quantity Estimate</div>
+    <table class="qty-table">
+      <thead><tr><th>Material</th><th>Qty</th><th>Unit</th><th>Details</th></tr></thead>
+      <tbody id="qty-body"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<footer>&copy; 2025 Structural Intelligence System</footer>
+
+<script>
+// ── FILE INPUT ──────────────────────────────────────────────
+const fileInput = document.getElementById("file-input");
+const dropZone  = document.getElementById("drop-zone");
+
+// Click on drop zone opens file picker
+dropZone.addEventListener("click", () => fileInput.click());
+
+fileInput.addEventListener("change", function() {
+  if (this.files && this.files[0]) loadFile(this.files[0]);
+});
+
+dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drag"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag"));
+dropZone.addEventListener("drop", e => {
+  e.preventDefault(); dropZone.classList.remove("drag");
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith("image/")) {
+    const dt = new DataTransfer(); dt.items.add(f);
+    fileInput.files = dt.files; loadFile(f);
+  }
+});
+
+function loadFile(file) {
+  document.getElementById("fname").textContent = file.name;
+  document.getElementById("fname").style.display = "block";
+  const reader = new FileReader();
+  reader.onload = e => {
+    const p = document.getElementById("preview");
+    p.src = e.target.result; p.style.display = "block";
+  };
+  reader.readAsDataURL(file);
+  document.getElementById("btn-convert").disabled = false;
+  ["sec-stats","sec-rooms","sec-mat","sec-cost","sec-qty","err"].forEach(id => {
+    document.getElementById(id).style.display = "none";
+  });
+  document.getElementById("btn-view").style.display = "none";
+}
+
+// ── CONVERT ─────────────────────────────────────────────────
+async function convert() {
+  const file = fileInput.files[0];
+  if (!file) { alert("Please select an image first."); return; }
+
+  document.getElementById("btn-convert").disabled = true;
+  document.getElementById("spinner").style.display = "block";
+  document.getElementById("err").style.display = "none";
+  ["sec-stats","sec-rooms","sec-mat","sec-cost","sec-qty"].forEach(id => {
+    document.getElementById(id).style.display = "none";
+  });
+  document.getElementById("btn-view").style.display = "none";
+
+  const form = new FormData();
+  form.append("image", file);
+
+  try {
+    const res  = await fetch("/image-to-3d", { method:"POST", body:form });
+    const data = await res.json();
+    document.getElementById("spinner").style.display = "none";
+    document.getElementById("btn-convert").disabled = false;
+
+    if (data.error) { showErr(data.error); return; }
+
+    renderStats(data);
+    renderRooms(data);
+    if (data.material_analysis) {
+      renderMaterials(data.material_analysis);
+      renderCost(data.material_analysis.cost_estimate);
+      renderQuantities(data.material_analysis.quantities);
+    }
+    document.getElementById("btn-view").style.display = "block";
+    window._3dData = data;
+
+  } catch(e) {
+    document.getElementById("spinner").style.display = "none";
+    document.getElementById("btn-convert").disabled = false;
+    showErr("Network error: " + e.message);
+  }
+}
+
+function showErr(msg) {
+  const el = document.getElementById("err");
+  el.textContent = "Error: " + msg; el.style.display = "block";
+}
+
+function show(id) { document.getElementById(id).style.display = "block"; }
+
+// ── STATS ───────────────────────────────────────────────────
+function renderStats(data) {
+  const s = data.summary;
+  document.getElementById("s-walls").textContent   = s.total_walls;
+  document.getElementById("s-lb").textContent      = s.load_bearing;
+  document.getElementById("s-pt").textContent      = s.partition;
+  document.getElementById("s-rooms").textContent   = s.total_rooms;
+  document.getElementById("s-doors").textContent   = s.total_doors   || 0;
+  document.getElementById("s-windows").textContent = s.total_windows || 0;
+  document.getElementById("s-area").textContent    = s.floor_area_m2 + " m2";
+  document.getElementById("s-size").textContent    = (s.building_width_m||"?") + "m x " + (s.building_depth_m||"?") + "m";
+
+  const det = document.getElementById("s-rooms-detail");
+  det.innerHTML = "";
+  const ICONS = {"Bedroom":"[Bed]","Hall":"[Hall]","Kitchen":"[Kit]","Bathroom":"[Bath]","Living Room":"[Liv]"};
+  if (s.room_types) {
+    Object.entries(s.room_types).forEach(([t,c]) => {
+      det.innerHTML += `<div class="row"><span>${ICONS[t]||"[R]"} ${t}</span><span style="color:#fbc2eb">${c}</span></div>`;
+    });
+  }
+  if (data.openings && data.openings.length) {
+    det.innerHTML += `<div style="font-size:0.75em;color:#f093fb;margin:8px 0 4px;font-weight:bold">Openings</div>`;
+    data.openings.forEach(o => {
+      det.innerHTML += `<div class="row"><span>${o.type==="door"?"[D]":"[W]"} ${o.id} (${o.type})</span><span style="color:#43e97b">${o.width_m}m</span></div>`;
+    });
+  }
+  const warns = s.structural_warnings || [];
+  document.getElementById("s-warn").textContent = warns.length ? "! " + warns.slice(0,3).join(" ! ") : "";
+  show("sec-stats");
+}
+
+// ── ROOMS ───────────────────────────────────────────────────
+function renderRooms(data) {
+  const COLORS = {"Bedroom":"#f093fb","Hall":"#4facfe","Kitchen":"#fda085","Bathroom":"#43e97b","Living Room":"#fbc2eb"};
+  document.getElementById("rc-num").textContent = data.summary.total_rooms || 0;
+  const cards = document.getElementById("rc-cards");
+  cards.innerHTML = "";
+  if (data.rooms && data.rooms.length) {
+    data.rooms.forEach(r => {
+      const c = COLORS[r.type] || "#aaa";
+      cards.innerHTML += `<div class="rcard">
+        <div class="rcard-num" style="background:linear-gradient(90deg,${c},#fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">1</div>
+        <div class="rcard-name">${r.name}</div>
+        <div class="rcard-area">${r.area_m2} m2</div>
+      </div>`;
+    });
+  }
+  show("sec-rooms");
+}
+
+// ── MATERIALS ───────────────────────────────────────────────
+function renderMaterials(ma) {
+  const NAMES = {"load-bearing wall":"Load-Bearing Walls","partition wall":"Partition Walls","slab":"Floor Slab","column":"Columns"};
+  let html = "";
+  Object.entries(ma.elements).forEach(([etype, mats]) => {
+    html += `<div class="mat-el"><div class="mat-el-name">${NAMES[etype]||etype}</div>`;
+    mats.forEach(m => {
+      const w = Math.min(Math.round((m.score/3.5)*100), 100);
+      const rc = m.rank===1?"r1":m.rank===2?"r2":"r3";
+      html += `<div class="mat-card">
+        <div class="mat-rank ${rc}">${m.rank}</div>
+        <div class="mat-info">
+          <div class="mat-name">${m.name}</div>
+          <div class="mat-bar"><div class="mat-fill" style="width:${w}%"></div></div>
+          <div class="mat-meta">
+            <span>Score:<b style="color:#43e97b"> ${m.score}</b></span>
+            <span>Str:${m.strength}/10</span>
+            <span>Dur:${m.durability}/10</span>
+            <span>Cost:${m.cost_index}/10</span>
+          </div>
+          <div class="mat-cost">${m.cost_inr}</div>
+          <div class="mat-reason">${m.reason}</div>
+          <div class="mat-formula">${m.formula}</div>
+        </div>
+      </div>`;
+    });
+    if (ma.explanations && ma.explanations[etype])
+      html += `<div class="mat-explain">${ma.explanations[etype]}</div>`;
+    html += `</div>`;
+  });
+  html += `<div class="formula-note">${ma.formula_note}</div>`;
+  document.getElementById("mat-content").innerHTML = html;
+  show("sec-mat");
+}
+
+// ── COST ────────────────────────────────────────────────────
+function renderCost(ce) {
+  if (!ce) return;
+  const fmt = n => "Rs." + Number(n).toLocaleString("en-IN");
+  document.getElementById("ce-total").textContent = fmt(ce.total_inr);
+  document.getElementById("ce-lakhs").textContent = ce.total_lakhs;
+  document.getElementById("ce-sqft").textContent  = fmt(ce.cost_per_sqft);
+  document.getElementById("ce-m2").textContent    = fmt(ce.cost_per_m2);
+  document.getElementById("ce-area").textContent  = ce.floor_area_sqft + " sqft";
+
+  const maxVal = Math.max(...Object.values(ce.breakdown));
+  let html = "";
+  Object.entries(ce.breakdown).forEach(([name, val]) => {
+    const pct = Math.round((val/maxVal)*100);
+    html += `<div class="cost-row">
+      <span>${name}</span>
+      <div class="cost-bar"><div class="cost-bar-fill" style="width:${pct}%"></div></div>
+      <span>${fmt(val)}</span>
+    </div>`;
+  });
+  html += `<div class="cost-row cost-sub-row"><span>Subtotal</span><span>${fmt(ce.subtotal)}</span></div>`;
+  html += `<div class="cost-row"><span>Overhead 15%</span><span>${fmt(ce.overhead_15pct)}</span></div>`;
+  html += `<div class="cost-row"><span>Contingency 10%</span><span>${fmt(ce.contingency_10pct)}</span></div>`;
+  html += `<div class="cost-row cost-total-row"><span>TOTAL</span><span>${fmt(ce.total_inr)}</span></div>`;
+  document.getElementById("ce-rows").innerHTML = html;
+  show("sec-cost");
+}
+
+// ── QUANTITIES ──────────────────────────────────────────────
+function renderQuantities(qty) {
+  if (!qty) return;
+  let html = "";
+  Object.entries(qty).forEach(([name, d]) => {
+    html += `<tr>
+      <td>${name}</td>
+      <td class="qty-num">${Number(d.qty).toLocaleString("en-IN")}</td>
+      <td class="qty-unit">${d.unit}</td>
+      <td class="qty-note">${d.note}</td>
+    </tr>`;
+  });
+  document.getElementById("qty-body").innerHTML = html;
+  show("sec-qty");
+}
+
+// ── VIEWER ──────────────────────────────────────────────────
+function openViewer() {
+  localStorage.setItem("model3d", JSON.stringify(window._3dData));
+  window.open("/viewer", "_blank");
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+tmp_input.json
+structural_report.json
+test_floor.png
+*.egg-info/
+.env
