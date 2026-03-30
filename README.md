@@ -1,16 +1,18 @@
 # 2D Floor Plan to 3D Model Converter
 
-An AI-powered web application that converts 2D floor plan images into interactive 3D models using computer vision and Three.js rendering.
+An AI-powered web application that converts 2D floor plan images into interactive 3D models with material analysis, cost estimation, and quantity takeoff.
 
 ---
 
 ## Project Structure
 
 ```
-iiitnr/
+Prompt-thon-PS2/
 ├── app.py                  # Flask web server & API routes
-├── image_to_3d.py          # Core image processing pipeline
+├── image_to_3d.py          # Core image processing pipeline (6 steps)
+├── material_analysis.py    # Material recommendations, cost & quantity estimation
 ├── structural_engine.py    # 5-stage structural analysis engine
+├── home.html               # Upload UI with all result panels
 ├── viewer.html             # Interactive Three.js 3D viewer
 ├── floor_plan_data.json    # Sample floor plan input data
 ├── requirements.txt        # Python dependencies
@@ -19,52 +21,63 @@ iiitnr/
 
 ---
 
-## How It Works
+## Features
 
-### Pipeline (image_to_3d.py)
+| Feature | Description |
+|---------|-------------|
+| Wall Detection | Detects thick wall lines, filters out text and dimensions |
+| Room Detection | Finds enclosed rooms, classifies as Bedroom/Kitchen/Hall/Bathroom/Living Room |
+| Door & Window Detection | Detects gaps in walls, identifies doors (arc) vs windows (frame) |
+| 3D Model | Extrudes walls to 3m, renders in Three.js with BoxGeometry, CylinderGeometry, SphereGeometry |
+| Material Analysis | Recommends top 3 materials per element with tradeoff score |
+| Cost Estimation | Full itemized construction cost in INR with overhead and contingency |
+| Quantity Estimation | Material quantities (concrete, steel, bricks, cement, tiles etc.) |
+
+---
+
+## 5-Stage Pipeline
 
 ```
 Floor Plan Image
       │
       ▼
-Step 1: Preprocess
-  - Resize to 400×400
-  - Threshold to isolate dark pixels
-  - Erode thin strokes (removes text, dimensions)
-  - Remove small blobs (dots, arrows, labels)
+Stage 1: Floor Plan Parsing
+  - Preprocess image (resize, threshold, erode, blob filter)
+  - Detect walls using Canny + HoughLinesP
+  - Filter: only H/V lines, thickness >= 3px, length >= 40px
       │
       ▼
-Step 2: Detect Walls
-  - Canny edge detection
-  - Hough Line Transform (only horizontal/vertical lines)
-  - Filter by thickness (walls > 2px, text < 2px)
-  - Merge duplicate lines
+Stage 2: Geometry Reconstruction
+  - Build structural graph (nodes = junctions, edges = walls)
+  - Classify walls: Load-Bearing (outer/long/thick) vs Partition
+  - Detect rooms using RETR_TREE contour hierarchy
+  - Classify rooms by area: Bathroom/Kitchen/Bedroom/Hall/Living Room
+  - Detect doors (arc near gap) and windows (parallel frame lines)
       │
       ▼
-Step 3: Auto-Scale
-  - Detect bounding box of all lines
-  - Assume building is ~10m wide
-  - Compute pixels-per-metre ratio
+Stage 3: 2D to 3D Model Generation
+  - Extrude each wall to 3m height (BoxGeometry)
+  - Generate floor slab (PlaneGeometry + ShapeGeometry)
+  - Add columns (CylinderGeometry) at load-bearing junctions
+  - Add joints (SphereGeometry) at column tops
+  - Add roof edge (EdgesGeometry)
+  - Render doors (wood panel + frame + brass knob + swing arc)
+  - Render windows (glass panes + frame + mullion + sill)
       │
       ▼
-Step 4: Classify Walls
-  - Near edge or long → Load-Bearing (red)
-  - Short inner lines  → Partition (blue)
+Stage 4: Material Analysis & Cost-Strength Tradeoff
+  - Score = (W1 x Strength + W2 x Durability) / Cost
+  - Structural: W1=0.6, W2=0.4 (strength-first)
+  - Partition:  W1=0.2, W2=0.3 (cost-first)
+  - Top 3 materials per element with INR price
+  - Full construction cost breakdown (15 line items)
+  - Material quantity takeoff (12 materials)
       │
       ▼
-Step 5: Detect Rooms
-  - Invert binary image
-  - Find enclosed contours
-  - Filter by area (1–500 m²)
-      │
-      ▼
-Step 6: Build 3D Meshes
-  - Extrude each wall to 3m height
-  - Generate 8-vertex box per wall
-  - Build floor slab from bounding box
-      │
-      ▼
-JSON Output → Three.js Viewer
+Stage 5: Explainability
+  - Plain-English explanation for each material choice
+  - Structural warnings for spans > 4m
+  - Optimization suggestions
 ```
 
 ---
@@ -74,14 +87,15 @@ JSON Output → Three.js Viewer
 **Requirements:** Python 3.8+
 
 ```bash
-# 1. Clone or download the project
-cd "C:\Users\omen\OneDrive\Desktop\iiitnr"
+# Clone the repository
+git clone https://github.com/tanjilakhan198-eng/Prompt-thon-PS2.git
+cd Prompt-thon-PS2
 
-# 2. Install dependencies
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-**requirements.txt includes:**
+**Dependencies:**
 - flask
 - opencv-python
 - numpy
@@ -95,7 +109,7 @@ pip install -r requirements.txt
 py app.py
 ```
 
-Then open your browser at:
+Open browser at:
 ```
 http://127.0.0.1:5000/
 ```
@@ -107,11 +121,10 @@ http://127.0.0.1:5000/
 | Step | Action |
 |------|--------|
 | 1 | Open `http://127.0.0.1:5000/` |
-| 2 | Click **"Click here to choose a floor plan image"** |
-| 3 | Select a PNG or JPG floor plan image |
-| 4 | Click **"Convert to 3D"** |
-| 5 | View detection results (walls, rooms, area) |
-| 6 | Click **"View 3D Model"** to open the interactive viewer |
+| 2 | Click the upload zone or drag & drop a floor plan image |
+| 3 | Click **Convert to 3D** |
+| 4 | View: Detection Results, Room Count, Material Analysis, Cost Estimate, Quantities |
+| 5 | Click **View 3D Model** for interactive Three.js viewer |
 
 ---
 
@@ -119,40 +132,58 @@ http://127.0.0.1:5000/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/` | Home page with upload UI |
-| POST | `/image-to-3d` | Upload image, returns 3D JSON |
-| GET | `/viewer` | Interactive Three.js 3D viewer |
+| GET | `/` | Home page |
+| POST | `/image-to-3d` | Upload image → returns full analysis JSON |
+| GET | `/viewer` | Three.js 3D viewer |
 
-### POST /image-to-3d
+---
 
-**Request:**
+## Material Analysis
+
+**Tradeoff Formula:**
 ```
-Content-Type: multipart/form-data
-Field: image (PNG/JPG file)
+Score = (W1 x Strength + W2 x Durability) / Cost
 ```
 
-**Response:**
-```json
-{
-  "summary": {
-    "total_walls": 8,
-    "load_bearing": 5,
-    "partition": 3,
-    "total_rooms": 4,
-    "floor_area_m2": 98.5,
-    "building_width_m": 10.0,
-    "building_depth_m": 9.85,
-    "wall_height_m": 3.0,
-    "structural_warnings": ["W1 is a 10.0m load-bearing span..."]
-  },
-  "walls_2d": [...],
-  "rooms": [...],
-  "model_3d": {
-    "wall_meshes": [...],
-    "floor_slab": {...}
-  }
-}
-```
+| Element | W1 | W2 | Priority |
+|---------|----|----|----------|
+| Load-Bearing Wall | 0.6 | 0.4 | Strength-first |
+| Partition Wall | 0.2 | 0.3 | Cost-first |
+| Slab | 0.6 | 0.4 | Strength-first |
+| Column | 0.7 | 0.3 | Max strength |
+
+**Materials Database:** Reinforced Concrete, Prestressed Concrete, Steel Frame, AAC Blocks, Fly Ash Bricks, Red Clay Bricks, Hollow Concrete Blocks, Timber Frame, Glass Fibre Reinforced
+
+---
+
+## Cost Estimation
+
+Full itemized breakdown including:
+- Foundation, Columns, Load-Bearing Walls, Partition Walls
+- Floor Slab, Roof Slab, Flooring (Tiles)
+- Plaster, Paint, Doors, Windows
+- Electrical, Plumbing, Sanitary, Labour
+- 15% Contractor Overhead + 10% Contingency
+
+Output: Total in INR, Lakhs, Cost/sq.ft, Cost/m2
+
+---
+
+## Material Quantities
+
+| Material | Unit |
+|----------|------|
+| Concrete (RCC) | m3 |
+| Steel (TMT Bars) | kg |
+| Red Clay Bricks | nos |
+| AAC Blocks | m3 |
+| Cement (OPC 53) | bags |
+| Sand, Aggregate | m3 |
+| Plaster, Paint | m2 / litres |
+| Floor Tiles | m2 |
+| Doors, Windows | nos |
+
+All quantities include 5% wastage factor.
 
 ---
 
@@ -160,57 +191,24 @@ Field: image (PNG/JPG file)
 
 | Control | Action |
 |---------|--------|
-| Left drag | Rotate model |
+| Left drag | Rotate |
 | Right drag | Pan |
-| Scroll wheel | Zoom in/out |
-| R key | Reset camera view |
-| Walls button | Toggle walls on/off |
-| Slab button | Toggle floor slab on/off |
-| Wireframe button | Toggle wireframe edges |
+| Scroll | Zoom |
+| R key | Reset camera |
+| Toolbar buttons | Toggle Walls / Slab / Columns / Doors / Roof / Wireframe |
 
 ### Color Legend
 
-| Color | Meaning |
+| Color | Element |
 |-------|---------|
-| 🔴 Red | Load-bearing wall |
-| 🔵 Blue | Partition wall |
-| 🟢 Green | Floor slab |
-
----
-
-## Wall Detection Logic
-
-### Why text is ignored
-Text and dimension labels are filtered out using 3 methods:
-
-1. **Morphological erosion** — erodes 2px, destroying thin text strokes (1–2px) while keeping thick walls (5–8px)
-2. **Blob size filter** — removes any connected component smaller than 60px²
-3. **Thickness measurement** — samples perpendicular width at 3 points along each line; skips lines thinner than 2px
-4. **Angle filter** — only keeps lines within 15° of horizontal or vertical (walls are always straight)
-5. **Length filter** — minimum 40px line length; short text strokes are ignored
-
-### Wall Classification
-```
-Near image edge (within 8%)  →  Load-Bearing
-Line length > 30% of image   →  Load-Bearing
-Everything else              →  Partition
-```
-
----
-
-## Best Image Types
-
-For best results, use floor plan images that have:
-- ✅ Black walls on white background
-- ✅ Thick wall lines (3px or more)
-- ✅ Mostly horizontal and vertical walls
-- ✅ Clear contrast between walls and background
-
-Avoid:
-- ❌ Very low resolution images (below 200×200)
-- ❌ Colored or shaded walls
-- ❌ Hand-drawn sketches with rough lines
-- ❌ Images with heavy watermarks over walls
+| Red | Load-bearing wall |
+| Blue | Partition wall |
+| Green | Floor slab |
+| Orange | Columns |
+| Pink | Joints |
+| Brown | Doors |
+| Sky Blue | Windows |
+| Purple | Roof edge |
 
 ---
 
@@ -225,28 +223,15 @@ Avoid:
 
 ---
 
-## Structural Analysis Engine (structural_engine.py)
+## Best Image Types
 
-Separate from the image pipeline, this engine processes structured JSON floor plan data through 5 stages:
-
-| Stage | Description |
-|-------|-------------|
-| 1 — Parsing | Extract walls, rooms, openings from JSON |
-| 2 — Geometry | Build structural graph, classify walls, detect spans |
-| 3 — 3D Model | Extrude walls to 3m, generate slab mesh |
-| 4 — Materials | Score materials using tradeoff formula |
-| 5 — Explain | Generate human-readable structural report |
-
-**Material Tradeoff Formula:**
-```
-Score = (W1 × Strength + W2 × Durability) / Cost
-
-Structural elements:  W1=0.6, W2=0.4  (strength-first)
-Partition elements:   W1=0.3, W2=0.3  (cost-first)
-```
+- Black walls on white background
+- Thick wall lines (3px or more)
+- Mostly horizontal and vertical walls
+- Clear contrast between walls and background
 
 ---
 
 ## License
 
-MIT License — free to use and modify.
+MIT License
